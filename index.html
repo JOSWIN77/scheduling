@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memory Allocation Simulator</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 40px auto;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(12px);
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+input, select {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    margin: 5px;
+    outline: none;
+}
+
+button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    margin: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.allocate { background: #00c9a7; color: white; }
+.allocate:hover { background: #00a087; }
+
+.reset { background: #ff4b5c; color: white; }
+.reset:hover { background: #c0392b; }
+
+.init { background: #3498db; color: white; }
+.init:hover { background: #2980b9; }
+
+.memory {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    gap: 10px;
+}
+
+.block {
+    flex: 1;
+    min-width: 100px;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: bold;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.block:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255,255,255,0.4);
+}
+
+.free {
+    background: linear-gradient(135deg, #00ff9f, #00c9a7);
+    color: black;
+}
+
+.allocated {
+    background: linear-gradient(135deg, #ff6a6a, #ff3d3d);
+}
+
+.fragment {
+    background: linear-gradient(135deg, #ffa502, #ff7f50);
+}
+
+#output {
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h1>🧠 Memory Allocation Simulator</h1>
+
+<div class="controls">
+<input type="text" id="pid" placeholder="Process ID">
+<input type="number" id="psize" placeholder="Process Size">
+
+<input type="text" id="blocks" placeholder="Memory Blocks (e.g. 100,200,300,400)">
+
+<select id="ptype">
+<option value="fixed">Fixed Partitioning</option>
+<option value="variable">Variable Partitioning</option>
+</select>
+
+<button class="init" onclick="initialize()">Initialize</button>
+<button class="allocate" onclick="allocate()">Allocate</button>
+<button class="reset" onclick="resetAll()">Reset</button>
+</div>
+
+<div id="output">💡 Initialize memory to begin</div>
+<div class="memory" id="memoryDisplay"></div>
+
+</div>
+
+<script>
+let memory = [];
+
+function initialize() {
+    let sizes = document.getElementById("blocks").value.split(",").map(Number);
+
+    if (sizes.length < 4) {
+        showMessage("⚠️ Enter at least 4 memory blocks!");
+        return;
+    }
+
+    memory = sizes.map(size => ({
+        size: size,
+        free: true,
+        pid: null,
+        fragment: 0
+    }));
+
+    showMessage("✅ Memory Initialized");
+    displayMemory();
+}
+
+function allocate() {
+    let pid = document.getElementById("pid").value;
+    let psize = parseInt(document.getElementById("psize").value);
+    let type = document.getElementById("ptype").value;
+
+    if (!pid || !psize) {
+        showMessage("⚠️ Enter process details!");
+        return;
+    }
+
+    let allocated = false;
+
+    for (let i = 0; i < memory.length; i++) {
+        if (memory[i].free && memory[i].size >= psize) {
+
+            if (type === "fixed") {
+                memory[i].free = false;
+                memory[i].pid = pid;
+                memory[i].fragment = memory[i].size - psize;
+            }
+
+            else {
+                let remaining = memory[i].size - psize;
+
+                memory[i] = {
+                    size: psize,
+                    free: false,
+                    pid: pid,
+                    fragment: 0
+                };
+
+                if (remaining > 0) {
+                    memory.splice(i + 1, 0, {
+                        size: remaining,
+                        free: true,
+                        pid: null,
+                        fragment: 0
+                    });
+                }
+            }
+
+            allocated = true;
+            break;
+        }
+    }
+
+    if (!allocated) {
+        showMessage("❌ Allocation Failed!");
+    } else {
+        showMessage("✅ Process " + pid + " Allocated");
+    }
+
+    displayMemory();
+}
+
+function displayMemory() {
+    let container = document.getElementById("memoryDisplay");
+    container.innerHTML = "";
+
+    let type = document.getElementById("ptype").value;
+    let internal = 0;
+    let external = 0;
+
+    memory.forEach(block => {
+        let div = document.createElement("div");
+        div.classList.add("block");
+
+        if (block.free) {
+            div.classList.add("free");
+            div.innerHTML = "FREE<br>" + block.size;
+            external += block.size;
+        } else {
+            div.classList.add("allocated");
+            div.innerHTML = "P" + block.pid + "<br>" + block.size;
+
+            if (block.fragment > 0) {
+                internal += block.fragment;
+            }
+        }
+
+        container.appendChild(div);
+    });
+
+    if (type === "fixed") {
+        showMessage("📊 Internal Fragmentation: " + internal);
+    } else {
+        showMessage("📊 External Fragmentation: " + external);
+    }
+}
+
+function showMessage(msg) {
+    document.getElementById("output").innerText = msg;
+}
+
+function resetAll() {
+    memory = [];
+    document.getElementById("memoryDisplay").innerHTML = "";
+    showMessage("🔄 Reset complete");
+}
+</script>
+
+</body>
+</html>
